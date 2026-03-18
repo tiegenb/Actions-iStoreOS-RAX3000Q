@@ -11,21 +11,15 @@ env:
   REPO_URL: https://github.com/openwrt/openwrt
   REPO_BRANCH: openwrt-23.05
   CONFIG_FILE: .config
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true  # 添加这一行
 
 jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6  # 从 v4 升级到 v6
       with:
         fetch-depth: 0
-
-    - name: 验证环境变量
-      run: |
-        echo "FORCE_JAVASCRIPT_ACTIONS_TO_NODE24 = $FORCE_JAVASCRIPT_ACTIONS_TO_NODE24"
-        node --version  # 验证 Node 版本
 
     - name: 安装依赖
       run: |
@@ -67,7 +61,7 @@ jobs:
         make -j$(nproc) V=s || make -j1 V=s
 
     - name: 上传固件
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v6  # 从 v4 升级到 v6
       with:
         name: OpenWrt-23.05-RAX3000Q-iStoreOS
         path: openwrt/bin/targets/ipq50xx/arm/*.bin
