@@ -1,181 +1,68 @@
-#
-# Copyright (c) 2019-2020 P3TERX <https://p3terx.com>
-#
-# This is free software, licensed under the MIT License.
-# See /LICENSE for more information.
-#
-# https://github.com/P3TERX/Actions-OpenWrt
-# Description: Build OpenWrt using GitHub Actions
-#
-
-name: 编译 iStoreOS 固件 - CMCC RAX3000Q
+name: Build iStoreOS for RAX3000Q (OpenWrt 23.05)
 
 on:
   push:
     branches: [ main, master ]
-    paths:
-      - '.config'
-      - '.github/workflows/*.yml'
   pull_request:
     branches: [ main, master ]
   workflow_dispatch:
 
-permissions:
-  contents: write
-  discussions: write
-
 env:
-  REPO_URL: https://github.com/istoreos/istoreos.git
-  REPO_BRANCH: main
+  REPO_URL: https://github.com/openwrt/openwrt
+  REPO_BRANCH: openwrt-23.05
   CONFIG_FILE: .config
-  BUILD_NAME: iStoreOS_RAX3000Q
-  TZ: Asia/Shanghai
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    if: github.event.repository.owner.id == github.event.sender.id
-
     steps:
     - name: Checkout
       uses: actions/checkout@v4
       with:
         fetch-depth: 0
-        lfs: false
 
-    - name: Free disk space
-      uses: jlumbroso/free-disk-space@main
-      with:
-        tool-cache: true
-        android: true
-        dotnet: true
-        haskell: true
-        large-packages: true
-        docker-images: true
-        swap-storage: true
-
-    - name: Initialization environment
-      env:
-        DEBIAN_FRONTEND: noninteractive
+    - name: 安装依赖
       run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential clang flex bison g++ gawk \
+        sudo apt update
+        sudo apt install -y build-essential clang flex bison g++ gawk \
         gcc-multilib g++-multilib gettext git libncurses5-dev libssl-dev \
-        python3-distutils python3-setuptools rsync unzip zlib1g-dev file \
-        wget curl qemu-utils cpio python3-pip patchelf
-        sudo timedatectl set-timezone "$TZ"
+        python3-setuptools rsync swig unzip zlib1g-dev file wget curl \
+        libelf-dev autoconf automake libtool pkg-config
 
-    - name: Clone source code
+    - name: 下载OpenWrt 23.05源码
       run: |
-        git clone ${{ env.REPO_URL }} --branch ${{ env.REPO_BRANCH }} --single-branch --depth 1 source
-        cd source
-        echo "源码版本: $(git log -1 --pretty=format:'%h %s')" >> $GITHUB_STEP_SUMMARY
+        git clone $REPO_URL --depth=1 -b $REPO_BRANCH openwrt
+        cd openwrt
+        ln -sf $GITHUB_WORKSPACE/* ./
 
-    - name: Update feeds
+    - name: 添加iStore源
       run: |
-        cd source
+        cd openwrt
+        echo "src-git istore https://github.com/linkease/istore-openwrt-feed.git" >> feeds.conf.default
         ./scripts/feeds update -a
         ./scripts/feeds install -a
 
-    - name: Load custom configuration
+    - name: 加载配置
       run: |
-        cp ${{ env.CONFIG_FILE }} source/.config
-        cd source
+        cd openwrt
+        cp $GITHUB_WORKSPACE/.config .config
         make defconfig
-        echo "配置摘要:" >> $GITHUB_STEP_SUMMARY
-        grep -E "^CONFIG_TARGET|^CONFIG_PACKAGE" .config | wc -l >> $GITHUB_STEP_SUMMARY
-        echo " 条配置项" >> $GITHUB_STEP_SUMMARY
 
-    - name: Download package
+    - name: 下载软件包源码
       run: |
-        cd source
-        make download -j$(nproc)
-        find dl -size -1024c -exec ls -l {} \; | wc -l > ../dl_check.txt
-        echo "下载完成，共 $(cat ../dl_check.txt) 个文件可能不完整" >> $GITHUB_STEP_SUMMARY
+        cd openwrt
+        make download -j8
+        find dl -size -1024c -exec ls -l {} \;
+        find dl -size -1024c -exec rm -f {} \;
 
-    - name: Compile the firmware
-      id: compile
+    - name: 编译固件
       run: |
-        cd source
-        echo "开始编译，预计需要 30-60 分钟..."
-        echo "开始时间: $(date)" >> $GITHUB_STEP_SUMMARY
-        
-        # 使用单线程编译避免内存不足
-        make -j$(nproc) V=s 2>&1 | tee ../build.log
-        
-        echo "结束时间: $(date)" >> $GITHUB_STEP_SUMMARY
-        
-        # 查找固件文件（适配 iStoreOS/OpenWrt 命名）
-        FIRMWARE_PATH=$(find bin/targets -name "*squashfs-sysupgrade.bin" -o -name "*squashfs-factory.bin" | head -1)
-        if [ -n "$FIRMWARE_PATH" ]; then
-          echo "✅ 编译成功" >> $GITHUB_STEP_SUMMARY
-          echo "固件路径: $FIRMWARE_PATH" >> $GITHUB_STEP_SUMMARY
-          echo "status=success" >> $GITHUB_OUTPUT
-        else
-          echo "❌ 编译失败" >> $GITHUB_STEP_SUMMARY
-          echo "status=failed" >> $GITHUB_OUTPUT
-          exit 1
-        fi
+        cd openwrt
+        make -j$(nproc) V=s || make -j1 V=s
 
-    - name: Organize files
-      id: organize
-      run: |
-        # 查找固件目录
-        FW_DIR=$(find source/bin/targets -type d -name "*" | grep -v "packages" | tail -1)
-        cd $FW_DIR
-        
-        mkdir -p ${{ runner.temp }}/firmware
-        
-        # 复制所有固件相关文件
-        cp -v *.bin *.img *.tar.gz *.manifest *-sha256sums ${{ runner.temp }}/firmware/ 2>/dev/null || true
-        
-        cd ${{ runner.temp }}/firmware
-        ls -lh > files.txt
-        
-        echo "Build Date: $(date '+%Y-%m-%d %H:%M:%S')" > version.txt
-        echo "Repository: ${{ github.repository }}" >> version.txt
-        echo "Commit: ${{ github.sha }}" >> version.txt
-        echo "Target: CMCC RAX3000Q" >> version.txt
-        cd ..
-        
-        echo "FIRMWARE=${{ runner.temp }}/firmware" >> $GITHUB_ENV
-        echo "status=success" >> $GITHUB_OUTPUT
-        
-        echo "📦 固件大小:" >> $GITHUB_STEP_SUMMARY
-        du -sh firmware/*.bin | sort -rh >> $GITHUB_STEP_SUMMARY || true
-
-    - name: Upload firmware to Actions
-      uses: actions/upload-artifact@v4
-      if: steps.organize.outputs.status == 'success'
-      with:
-        name: ${{ env.BUILD_NAME }}-${{ github.sha }}
-        path: ${{ env.FIRMWARE }}
-        retention-days: 30
-
-    - name: Upload build log
-      if: always()
+    - name: 上传固件
       uses: actions/upload-artifact@v4
       with:
-        name: build-log-${{ github.sha }}
-        path: build.log
-        retention-days: 30
-
-    - name: Generate release tag
-      id: tag
-      if: startsWith(github.ref, 'refs/tags/')
-      run: |
-        echo "release_tag=${{ env.BUILD_NAME }}-$(date +"%Y%m%d-%H%M")" >> $GITHUB_OUTPUT
-        echo "status=success" >> $GITHUB_OUTPUT
-
-    - name: Upload firmware to release
-      uses: softprops/action-gh-release@v1
-      if: steps.tag.outputs.status == 'success'
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.tag.outputs.release_tag }}
-        body_path: ${{ env.FIRMWARE }}/version.txt
-        files: ${{ env.FIRMWARE }}/*
-        draft: false
-        prerelease: false
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        name: OpenWrt-23.05-RAX3000Q-iStoreOS
+        path: openwrt/bin/targets/ipq50xx/arm/*.bin
+        retention-days: 7
