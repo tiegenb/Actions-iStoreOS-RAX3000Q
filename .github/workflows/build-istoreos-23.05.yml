@@ -61,7 +61,7 @@ jobs:
         make -j$(nproc) V=s || make -j1 V=s
 
     - name: 上传固件
-      uses: actions/checkout@v6
+      uses: actions/checkout@v5
       with:
         name: OpenWrt-23.05-RAX3000Q-iStoreOS
         path: openwrt/bin/targets/ipq50xx/arm/*.bin
