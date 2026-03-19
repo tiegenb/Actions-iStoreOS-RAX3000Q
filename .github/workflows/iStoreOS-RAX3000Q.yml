@@ -7,7 +7,7 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
   schedule:
-    - cron: '0 0 1 * *'  # 每月自动编译一次
+    - cron: '0 0 1 * *'
 
 env:
   REPO_URL: https://github.com/openwrt/openwrt
@@ -156,7 +156,7 @@ EOF
         
         # 4. 设置编译优化
         echo "设置编译优化参数..."
-        cat >> .config << EOF
+        cat >> .config << "EOF"
 
 # 编译优化选项
 CONFIG_DEBUG_INFO=n
@@ -235,7 +235,7 @@ EOF
       if: success()
       uses: actions/upload-artifact@v6
       with:
-        name: iStoreOS-RAX3000Q-$(date +%Y%m%d-%H%M%S)
+        name: iStoreOS-RAX3000Q-${{ github.run_number }}
         path: |
           openwrt/bin/targets/*/*/*.bin
           openwrt/bin/targets/*/*/*.img
@@ -250,7 +250,7 @@ EOF
       if: failure()
       uses: actions/upload-artifact@v6
       with:
-        name: build-logs-$(date +%Y%m%d-%H%M%S)
+        name: build-logs-${{ github.run_number }}
         path: |
           openwrt/logs/
           openwrt/.config
@@ -268,51 +268,3 @@ EOF
         make clean || true
         rm -rf build_dir logs dl tmp || true
         echo "✅ 编译环境已清理"
-
-  release:
-    needs: build
-    if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-22.04
-    
-    steps:
-    - name: 下载所有固件
-      uses: actions/download-artifact@v4
-      with:
-        path: artifacts
-        
-    - name: 创建Release
-      uses: ncipollo/release-action@v1
-      with:
-        artifacts: "artifacts/*/*.bin,artifacts/*/*.img,artifacts/*/*.ubi,artifacts/*/*.md5,artifacts/*/*.sha256"
-        token: ${{ secrets.GITHUB_TOKEN }}
-        tag: RAX3000Q-${{ github.run_number }}
-        name: iStoreOS for RAX3000Q (Build ${{ github.run_number }})
-        body: |
-          ## iStoreOS for RAX3000Q (OpenWrt 23.05)
-          
-          ### 📅 编译时间：$(date '+%Y-%m-%d %H:%M:%S')
-          ### 🔧 基于OpenWrt 23.05源码
-          ### 📦 包含iStore应用商店
-          
-          ### ✅ 固件特性：
-          - 基于实际设备配置优化
-          - 完整NSS硬件加速
-          - USB3.0支持
-          - 256MB内存优化
-          - 包含iStore应用商店
-          - 中文LuCI界面
-          
-          ### 📝 刷机说明：
-          1. 如果当前是OpenWrt：使用sysupgrade.bin在LuCI中升级
-          2. 如果从官方固件刷入：可能需要使用factory.ubi
-          3. 默认IP：192.168.66.1
-          4. 默认密码：password
-          
-          ### ⚠️ 注意事项：
-          - 刷机前请备份原配置
-          - 如遇问题可在Issues反馈
-          
-          ### 🔐 文件校验：
-          每个固件都包含对应的md5和sha256校验文件
-        draft: false
-        prerelease: false
