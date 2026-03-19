@@ -34,7 +34,7 @@ jobs:
         df -h
 
     - name: 检出代码
-      uses: actions/checkout@v6
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
@@ -233,7 +233,7 @@ EOF
 
     - name: 上传固件
       if: success()
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v4
       with:
         name: iStoreOS-RAX3000Q-${{ github.run_number }}
         path: |
@@ -248,7 +248,7 @@ EOF
 
     - name: 上传编译日志（失败时）
       if: failure()
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v4
       with:
         name: build-logs-${{ github.run_number }}
         path: |
