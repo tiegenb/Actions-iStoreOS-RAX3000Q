@@ -1,33 +1,30 @@
-name: Download Firmware from Specific Run
+name: 📥 Download Firmware (No Git needed)
 
 on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: 'ae3545e'
+        description: '输入运行ID'
         required: true
-        default: 'ae3545e'
 
 jobs:
   download:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Download all artifacts from run
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        # 创建下载目录
-        mkdir -p firmware
+      - name: Download artifacts using official action
+        uses: actions/download-artifact@v4
+        with:
+          name: OpenWrt-23.05-RAX3000Q-iStoreOS  # 如果知道具体名字就填，不知道就不填
+          path: firmware/
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: tiegenb/Actions-iStoreOS-RAX3000Q
+          run-id: ${{ github.event.inputs.run_id }}
+          
+      - name: List downloaded files
+        run: ls -la firmware/
         
-        # 下载该运行的所有 artifacts
-        gh run download ${{ github.event.inputs.run_id }} --dir firmware
-        
-        echo "📦 下载的文件："
-        ls -la firmware/
-        
-    - name: Upload firmware
-      uses: actions/upload-artifact@v6
-      with:
-        name: RAX3000Q-Firmware
-        path: firmware/
+      - name: Upload as new artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: Downloaded-Firmware
+          path: firmware/
