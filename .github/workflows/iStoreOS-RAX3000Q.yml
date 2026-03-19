@@ -69,7 +69,7 @@ jobs:
         cd openwrt
         
         # 配置官方源
-        cat > feeds.conf.default << EOF
+        cat > feeds.conf.default << 'EOF'
 src-git packages https://git.openwrt.org/feed/packages.git;$REPO_BRANCH
 src-git luci https://git.openwrt.org/project/luci.git;$REPO_BRANCH
 src-git routing https://git.openwrt.org/feed/routing.git;$REPO_BRANCH
@@ -154,16 +154,13 @@ EOF
           touch package/network/utils/iwinfo/*.c
         fi
         
-        # 4. 设置编译优化
+        # 4. 设置编译优化 - 修复了第73行的问题
         echo "设置编译优化参数..."
-        cat >> .config << "EOF"
-
-# 编译优化选项
-CONFIG_DEBUG_INFO=n
-CONFIG_STRIP_KERNEL_EXPORTS=y
-CONFIG_USE_MKLIBS=y
-CONFIG_USE_SSTRIP=y
-EOF
+        echo '# 编译优化选项' >> .config
+        echo 'CONFIG_DEBUG_INFO=n' >> .config
+        echo 'CONFIG_STRIP_KERNEL_EXPORTS=y' >> .config
+        echo 'CONFIG_USE_MKLIBS=y' >> .config
+        echo 'CONFIG_USE_SSTRIP=y' >> .config
         
         echo "✅ 编译修复完成"
 
