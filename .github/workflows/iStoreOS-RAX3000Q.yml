@@ -95,7 +95,6 @@ EOF
     - name: 验证配置文件
       run: |
         cd openwrt
-        
         echo "=== 配置文件验证 ==="
         
         # 检查关键配置
@@ -110,7 +109,6 @@ EOF
         
         # 更新配置
         make defconfig
-        
         echo "✅ 配置文件验证完成"
 
     - name: 下载软件包源码
@@ -154,13 +152,15 @@ EOF
           touch package/network/utils/iwinfo/*.c
         fi
         
-        # 4. 设置编译优化 - 修复了第73行的问题
+        # 4. 设置编译优化
         echo "设置编译优化参数..."
-        echo '# 编译优化选项' >> .config
-        echo 'CONFIG_DEBUG_INFO=n' >> .config
-        echo 'CONFIG_STRIP_KERNEL_EXPORTS=y' >> .config
-        echo 'CONFIG_USE_MKLIBS=y' >> .config
-        echo 'CONFIG_USE_SSTRIP=y' >> .config
+        {
+          echo "# 编译优化选项"
+          echo "CONFIG_DEBUG_INFO=n"
+          echo "CONFIG_STRIP_KERNEL_EXPORTS=y"
+          echo "CONFIG_USE_MKLIBS=y"
+          echo "CONFIG_USE_SSTRIP=y"
+        } >> .config
         
         echo "✅ 编译修复完成"
 
