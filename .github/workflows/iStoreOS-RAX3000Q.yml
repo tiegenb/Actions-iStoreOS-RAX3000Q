@@ -82,29 +82,70 @@ jobs:
       run: |
         cd openwrt
         echo "开始编译固件..."
+        # 先尝试全速编译，失败则降级为单线程详细模式
         make -j$(nproc) V=s || make -j1 V=sc
 
-    - name: 上传固件
-      if: success()
+    # ========== 关键修改部分：确保上传 ==========
+    - name: 收集所有固件文件
+      run: |
+        cd openwrt
+        echo "🔍 正在搜索所有编译生成的固件文件..."
+        
+        # 创建统一的固件收集目录
+        mkdir -p $GITHUB_WORKSPACE/firmware-collection
+        
+        # 查找并复制所有可能的固件文件
+        echo "📦 查找 .bin, .img, .ubi 文件..."
+        find bin/targets/ -type f \( \
+          -name "*.bin" -o \
+          -name "*.img" -o \
+          -name "*.ubi" -o \
+          -name "*.tar" -o \
+          -name "*.gz" -o \
+          -name "*.xz" -o \
+          -name "*squashfs*" -o \
+          -name "*sysupgrade*" -o \
+          -name "*factory*" \
+        \) -exec cp -v {} $GITHUB_WORKSPACE/firmware-collection/ \;
+        
+        # 同时复制整个 profiles.json 文件（包含固件信息）
+        find bin/targets/ -name "profiles.json" -exec cp -v {} $GITHUB_WORKSPACE/firmware-collection/ \;
+        
+        # 列出找到的所有文件
+        echo "✅ 已收集以下文件："
+        ls -la $GITHUB_WORKSPACE/firmware-collection/
+        
+        # 统计文件数量
+        count=$(ls -1 $GITHUB_WORKSPACE/firmware-collection/ 2>/dev/null | wc -l)
+        echo "📊 共找到 $count 个文件"
+        
+        # 如果没找到任何文件，输出警告
+        if [ $count -eq 0 ]; then
+          echo "⚠️ 警告：没有找到任何固件文件！"
+          echo "📁 查看 bin/targets/ 目录结构："
+          find bin/targets/ -type d | head -20
+        fi
+        
+    - name: 上传固件（统一收集版）
+      if: success() || failure()  # 即使编译有警告也尝试上传
       uses: actions/upload-artifact@v6
       with:
         name: OpenWrt-23.05-RAX3000Q-iStoreOS
-        path: |
-          openwrt/bin/targets/*/*.bin
-          openwrt/bin/targets/*/*.img
-          openwrt/bin/targets/*/*.ubi
+        path: firmware-collection/
         retention-days: 7
         if-no-files-found: warn
-
-    - name: 上传编译日志（如果失败）
+        compression-level: 6  # 添加压缩，节省空间
+        
+    - name: 上传编译日志和配置（如果失败）
       if: failure()
       uses: actions/upload-artifact@v6
       with:
-        name: build-logs
+        name: build-logs-and-config
         path: |
           openwrt/logs/
           openwrt/.config
           openwrt/feeds.conf.default
           openwrt/feeds/istore/
+          openwrt/bin/targets/*/profiles.json
         retention-days: 7
         if-no-files-found: warn
